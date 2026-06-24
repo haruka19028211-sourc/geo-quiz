@@ -4,99 +4,20 @@ import random
 from collections import defaultdict
 
 # ===== ページ設定 =====
-st.set_page_config(page_title="市区町村クイズ", page_icon="🗾", layout="centered")
+st.set_page_config(page_title="市区町村クイズ", page_icon="📍")
 
-# ===== カスタムCSS（モダンテーマ）=====
-st.markdown(
-    """
-    <style>
-    /* 全体の背景 */
-    .stApp {
-        background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #ecfeff 100%);
-    }
-    /* メインコンテナの横幅を少し締める */
-    .block-container {
-        max-width: 760px;
-        padding-top: 2.2rem;
-    }
-    /* 見出しフォント */
-    h1, h2, h3 { letter-spacing: .02em; }
-
-    /* ヒーローカード */
-    .hero {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
-        border-radius: 24px;
-        padding: 2.6rem 1.8rem;
-        text-align: center;
-        color: #fff;
-        box-shadow: 0 18px 40px -12px rgba(99,102,241,.55);
-        margin-bottom: 1.6rem;
-    }
-    .hero .emoji { font-size: 3.4rem; line-height: 1; }
-    .hero h1 {
-        color: #fff; font-size: 2.1rem; font-weight: 800;
-        margin: .5rem 0 .4rem;
-    }
-    .hero p { color: rgba(255,255,255,.92); font-size: 1.02rem; margin: 0; }
-
-    /* 統計バッジ */
-    .stat-row { display: flex; gap: .8rem; margin: 1.1rem 0 0; }
-    .stat {
-        flex: 1; background: rgba(255,255,255,.16);
-        border: 1px solid rgba(255,255,255,.25);
-        border-radius: 14px; padding: .7rem .4rem;
-        backdrop-filter: blur(4px);
-    }
-    .stat .num { font-size: 1.45rem; font-weight: 800; color: #fff; }
-    .stat .lbl { font-size: .78rem; color: rgba(255,255,255,.85); }
-
-    /* セクションカード */
-    .card {
-        background: #fff; border-radius: 18px; padding: 1.4rem 1.4rem 1.1rem;
-        box-shadow: 0 8px 24px -14px rgba(15,23,42,.25);
-        border: 1px solid #eef2f7; margin-bottom: 1.2rem;
-    }
-
-    /* ボタンを大きく丸く */
-    .stButton > button {
-        border-radius: 14px;
-        font-weight: 700;
-        padding: .65rem 1rem;
-        border: 1px solid #e2e8f0;
-        transition: transform .06s ease, box-shadow .12s ease;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px -10px rgba(99,102,241,.5);
-    }
-    /* primaryボタン（スタート等）をグラデーションに */
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        border: none; color: #fff; font-size: 1.05rem;
-    }
-
-    /* 進捗バー色 */
-    .stProgress > div > div > div > div {
-        background: linear-gradient(90deg, #6366f1, #06b6d4);
-    }
-
-    /* 出題カードの市区町村名 */
-    .quiz-city {
-        background: #fff; border-radius: 20px; text-align: center;
-        padding: 2rem 1rem; margin: .4rem 0 1rem;
-        box-shadow: 0 10px 30px -16px rgba(15,23,42,.3);
-        border: 1px solid #eef2f7;
-    }
-    .quiz-city .name { font-size: 2.6rem; font-weight: 800; color: #1e293b; }
-    .quiz-city .name ruby rt {
-        font-size: .9rem; font-weight: 600; color: #6366f1;
-        letter-spacing: .04em; margin-bottom: .15rem;
-    }
-    .quiz-city .sub { color: #64748b; font-size: .95rem; margin-top: .3rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# 位置ピン（モノクロSVGアイコン）
+PIN_ICON = (
+    '<svg width="{size}" height="{size}" viewBox="0 0 24 24" '
+    'fill="currentColor" style="vertical-align:-0.12em;margin-right:.2em;">'
+    '<path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z'
+    'm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>'
 )
+
+
+def pin(size):
+    return PIN_ICON.format(size=size)
+
 
 # ===== データ読み込み（最初の1回だけ）=====
 @st.cache_data
@@ -163,47 +84,33 @@ if "started" not in st.session_state:
     st.session_state.started = False
 
 # ===== スタート画面 =====
-if not st.session_state.started:
-    # 件数を事前計算
-    n_shi = len([d for d in ALL_DATA if d["city"].endswith("市")])
-    n_all = len(ALL_DATA)
+st.markdown(
+    f"<h1>{pin(36)}市区町村クイズ</h1>",
+    unsafe_allow_html=True,
+)
+st.write("表示された市区町村が、どの都道府県にあるかを4択で当てよう！全10問。")
 
-    # --- ヒーロー ---
-    st.markdown(
-        f"""
-        <div class="hero">
-            <div class="emoji">🗾</div>
-            <h1>市区町村クイズ</h1>
-            <p>表示された市区町村が、どの都道府県にあるかを4択で当てよう！</p>
-            <div class="stat-row">
-                <div class="stat"><div class="num">{TOTAL_QUESTIONS}</div><div class="lbl">問 出題</div></div>
-                <div class="stat"><div class="num">4</div><div class="lbl">択クイズ</div></div>
-                <div class="stat"><div class="num">47</div><div class="lbl">都道府県</div></div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+if not st.session_state.started:
+    # --- モード選択 ---
+    st.subheader("出題モードを選んでください")
+    mode = st.radio(
+        "モード",
+        ["市のみ", "市区町村すべて"],
+        captions=[
+            "「〇〇市」だけを出題（やさしめ）",
+            "市・区・町・村すべてを出題（むずかしめ）",
+        ],
+        label_visibility="collapsed",
     )
 
-    # --- モード選択カード ---
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("🎯 出題モードを選んでください")
-        mode = st.radio(
-            "モード",
-            ["市のみ", "市区町村すべて"],
-            captions=[
-                f"「〇〇市」だけを出題（やさしめ）・全国 {n_shi} 件",
-                f"市・区・町・村すべてを出題（むずかしめ）・全国 {n_all} 件",
-            ],
-            label_visibility="collapsed",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+    # 出題プールの件数を表示
+    if mode == "市のみ":
+        n = len([d for d in ALL_DATA if d["city"].endswith("市")])
+    else:
+        n = len(ALL_DATA)
+    st.info(f"全国 {n} 件からランダムで {TOTAL_QUESTIONS} 問出題します。")
 
-    n = n_shi if mode == "市のみ" else n_all
-    st.caption(f"📍 全国 {n} 件からランダムで {TOTAL_QUESTIONS} 問出題します。")
-
-    if st.button("▶ スタート", type="primary", use_container_width=True):
+    if st.button("▶ スタート", type="primary"):
         st.session_state.started = True
         st.session_state.mode = mode
         st.session_state.questions = make_questions(mode)
@@ -224,18 +131,14 @@ if current < TOTAL_QUESTIONS:
     st.subheader(f"第 {current + 1} 問 / {TOTAL_QUESTIONS}")
 
     if q.get("yomi"):
-        city_html = f'🏙 <ruby>{q["city"]}<rt>{q["yomi"]}</rt></ruby>'
+        city_html = f'<ruby>{q["city"]}<rt>{q["yomi"]}</rt></ruby>'
     else:
-        city_html = f'🏙 {q["city"]}'
+        city_html = q["city"]
     st.markdown(
-        f"""
-        <div class="quiz-city">
-            <div class="name">{city_html}</div>
-            <div class="sub">この市区町村はどの都道府県にある？</div>
-        </div>
-        """,
+        f'<h2>{pin(30)}{city_html}</h2>',
         unsafe_allow_html=True,
     )
+    st.write("この市区町村はどの都道府県にある？")
 
     if len(st.session_state.answers) == current:
         cols = st.columns(2)
