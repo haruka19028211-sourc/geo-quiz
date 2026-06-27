@@ -19,6 +19,26 @@ def pin(size):
     return PIN_ICON.format(size=size)
 
 
+# モノトーンのクイズ別アイコン
+ICON_PATHS = {
+    "city": "M3 21V8l6-3v3l6-3v4h6v12h-7v-4h-2v4H3zm2-2h3v-2H5v2zm0-4h3v-2H5v2z"
+            "m0-4h3V9H5v2zm5 0h3V7h-3v2zm0 4h3v-2h-3v2zm6 4h3v-2h-3v2zm0-4h3v-2h-3v2z",
+    "areacode": "M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24 "
+                "11.4 11.4 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4"
+                "a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.24 "
+                "1.02l-2.21 2.2z",
+    "station": "M5 15V7c0-2.5 2.5-3 7-3s7 .5 7 3v8c0 1.4-1.1 2.5-2.5 2.5l1.5 1.5v.5H6v-.5"
+               "l1.5-1.5C6.1 17.5 5 16.4 5 15zm2.5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"
+               "M11 11V7H7v4h4zm2 0h4V7h-4v4zm3.5 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+}
+
+
+def quiz_icon(key, size):
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="currentColor" '
+            f'style="vertical-align:-0.15em;margin-right:.28em;">'
+            f'<path d="{ICON_PATHS[key]}"/></svg>')
+
+
 TOTAL_QUESTIONS = 10
 
 ALL_PREFS = [
@@ -113,7 +133,8 @@ def make_areacode_questions():
 
 
 def make_station_questions():
-    picked = random.sample(load_stations(), TOTAL_QUESTIONS)
+    pool = [s for s in load_stations() if s.get("quiz_ng") != "1"]
+    picked = random.sample(pool, TOTAL_QUESTIONS)
     questions = []
     for q in picked:
         exclude = set(q["exclude"].split("|")) if q["exclude"] else set()
@@ -134,13 +155,13 @@ def make_station_questions():
 
 # ===== クイズ定義 =====
 QUIZZES = {
-    "city": {"emoji": "🗾", "title": "市区町村クイズ",
+    "city": {"title": "市区町村クイズ",
              "lead": "表示された市区町村が、どの都道府県にあるかを4択で当てよう！全10問。",
              "ask": "この市区町村はどの都道府県にある？", "unit": ""},
-    "areacode": {"emoji": "☎", "title": "市外局番クイズ",
+    "areacode": {"title": "市外局番クイズ",
                  "lead": "表示された市外局番が、どの都道府県のものかを4択で当てよう！全10問。",
                  "ask": "この市外局番はどの都道府県？", "unit": ""},
-    "station": {"emoji": "🚉", "title": "駅名クイズ",
+    "station": {"title": "駅名クイズ",
                 "lead": "表示された駅が、どの都道府県にあるかを4択で当てよう！全10問。",
                 "ask": "この駅はどの都道府県にある？", "unit": "駅"},
 }
@@ -164,26 +185,84 @@ st.caption("ジオゲッサー日本マップ練習アプリ")
 if st.session_state.quiz is None:
     st.write("挑戦するクイズを選んでください。")
     items = [
-        ("city", "市区町村 → どの都道府県かを4択で（ふりがな付き）"),
-        ("areacode", "市外局番 → どの都道府県かを4択で（対象地域も表示）"),
-        ("station", "駅名 → どの都道府県かを4択で（運営会社・路線も表示）"),
+        ("city", "市区町村 → どの都道府県かを4択で"),
+        ("areacode", "市外局番 → どの都道府県かを4択で"),
+        ("station", "駅名 → どの都道府県かを4択で"),
     ]
     for key, desc in items:
         q = QUIZZES[key]
-        st.subheader(f"{q['emoji']} {q['title']}")
+        st.markdown(f"<h3>{quiz_icon(key, 26)}{q['title']}</h3>", unsafe_allow_html=True)
         st.caption(desc)
         if st.button(f"{q['title']}で遊ぶ", type="primary", use_container_width=True, key=f"start_{key}"):
             st.session_state.quiz = key
             st.rerun()
         st.write("")
+
+    st.divider()
+    st.subheader("📋 マスタ閲覧")
+    st.caption("取り込んでいるデータ（市区町村・市外局番・駅）の一覧を確認できます。")
+    if st.button("マスタを閲覧する", use_container_width=True, key="open_master"):
+        st.session_state.quiz = "master"
+        st.rerun()
     st.stop()
+
+# ===== マスタ閲覧 =====
+if st.session_state.quiz == "master":
+    st.subheader("📋 マスタ閲覧")
+    if st.button("← ホームに戻る"):
+        go_home()
+        st.rerun()
+
+    target = st.radio("表示するデータ", ["市区町村", "市外局番", "駅"], horizontal=True)
+    kw = st.text_input("キーワード検索（名前・地域などで絞り込み）", "")
+
+    pref_options = ["すべて"] + ALL_PREFS
+    pref_sel = st.selectbox("都道府県でしぼり込み", pref_options)
+
+    def _kw_ok(*vals):
+        return (not kw) or any(kw in (v or "") for v in vals)
+
+    def _pref_ok(p):
+        return pref_sel == "すべて" or p == pref_sel
+
+    table = []
+    if target == "市区町村":
+        for d in load_cities():
+            if not (_pref_ok(d["pref"]) and _kw_ok(d["city"], d["yomi"], d["pref"])):
+                continue
+            table.append({
+                "都道府県": d["pref"], "市区町村": d["city"], "読み": d["yomi"],
+            })
+    elif target == "市外局番":
+        for d in load_areacodes():
+            if not (_pref_ok(d["pref"]) and _kw_ok(d["code"], d["cities"], d["pref"], d["other_cities"])):
+                continue
+            other = d["other_prefs"].replace("|", "・")
+            table.append({
+                "市外局番": d["code"], "都道府県": d["pref"], "主な対象地域": d["cities"],
+                "他県でも使用": other, "クイズ出題": "〇",
+            })
+    else:
+        for d in load_stations():
+            if not (_pref_ok(d["pref"]) and _kw_ok(d["name"], d["address"], d["pref"], d["lines"], d["companies"])):
+                continue
+            table.append({
+                "駅名": d["name"], "都道府県": d["pref"], "住所": d["address"],
+                "運営": d["companies"], "路線": d["lines"],
+            })
+
+    st.caption(f"{len(table)} 件")
+    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.stop()
+
+# ===== 選択中クイズ =====
 
 # ===== 選択中クイズ =====
 QZ = QUIZZES[st.session_state.quiz]
 IS_CITY = st.session_state.quiz == "city"
 IS_AREACODE = st.session_state.quiz == "areacode"
 
-st.subheader(f"{QZ['emoji']} {QZ['title']}")
+st.markdown(f"<h3>{quiz_icon(st.session_state.quiz, 26)}{QZ['title']}</h3>", unsafe_allow_html=True)
 st.write(QZ["lead"])
 if st.button("← ホームに戻る"):
     go_home()
