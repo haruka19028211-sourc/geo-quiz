@@ -30,6 +30,8 @@ ICON_PATHS = {
     "station": "M5 15V7c0-2.5 2.5-3 7-3s7 .5 7 3v8c0 1.4-1.1 2.5-2.5 2.5l1.5 1.5v.5H6v-.5"
                "l1.5-1.5C6.1 17.5 5 16.4 5 15zm2.5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"
                "M11 11V7H7v4h4zm2 0h4V7h-4v4zm3.5 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+    "master": "M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+              "m2 4v2h10V7H7zm0 4v2h10v-2H7zm0 4v2h7v-2H7z",
 }
 
 
@@ -199,7 +201,7 @@ if st.session_state.quiz is None:
         st.write("")
 
     st.divider()
-    st.subheader("📋 マスタ閲覧")
+    st.markdown(f"<h3>{quiz_icon('master', 26)}マスタ閲覧</h3>", unsafe_allow_html=True)
     st.caption("取り込んでいるデータ（市区町村・市外局番・駅）の一覧を確認できます。")
     if st.button("マスタを閲覧する", use_container_width=True, key="open_master"):
         st.session_state.quiz = "master"
@@ -208,7 +210,7 @@ if st.session_state.quiz is None:
 
 # ===== マスタ閲覧 =====
 if st.session_state.quiz == "master":
-    st.subheader("📋 マスタ閲覧")
+    st.markdown(f"<h3>{quiz_icon('master', 26)}マスタ閲覧</h3>", unsafe_allow_html=True)
     if st.button("← ホームに戻る"):
         go_home()
         st.rerun()
@@ -240,7 +242,7 @@ if st.session_state.quiz == "master":
             other = d["other_prefs"].replace("|", "・")
             table.append({
                 "市外局番": d["code"], "都道府県": d["pref"], "主な対象地域": d["cities"],
-                "他県でも使用": other, "クイズ出題": "〇",
+                "他県でも使用": other,
             })
     else:
         for d in load_stations():
@@ -252,6 +254,11 @@ if st.session_state.quiz == "master":
             })
 
     st.caption(f"{len(table)} 件")
+    # 表のツールバー（CSVダウンロード等）を非表示
+    st.markdown(
+        '<style>[data-testid="stElementToolbar"]{display:none !important;}</style>',
+        unsafe_allow_html=True,
+    )
     st.dataframe(table, use_container_width=True, hide_index=True)
     st.stop()
 
