@@ -198,8 +198,17 @@ def go_home():
     st.session_state.started = False
 
 
+# タイトルクリック（?home）でホームへ戻る
+if st.query_params.get("home") is not None:
+    go_home()
+    st.query_params.clear()
+
 # ===== ホーム =====
-st.markdown(f"<h1>{pin(34)}Geo Quiz: Japan</h1>", unsafe_allow_html=True)
+st.markdown(
+    f'<a href="?home=1" target="_self" style="text-decoration:none;color:inherit;">'
+    f'<h1>{pin(34)}Geo Quiz: Japan</h1></a>',
+    unsafe_allow_html=True,
+)
 st.caption("ジオゲッサー日本マップ練習アプリ")
 
 if st.session_state.quiz is None:
@@ -252,6 +261,7 @@ if st.session_state.quiz == "master":
                 continue
             table.append({
                 "都道府県": d["pref"], "市区町村": d["city"], "読み": d["yomi"],
+                "Trivia": get_trivia("city", d["city"], d["pref"]),
             })
     elif target == "市外局番":
         for d in load_areacodes():
@@ -260,6 +270,7 @@ if st.session_state.quiz == "master":
             table.append({
                 "市外局番": d["code"], "都道府県": d["pref"], "主な対象地域": d["cities"],
                 "他県でも使用": d["other_cities"],
+                "Trivia": get_trivia("areacode", d["code"], d["pref"]),
             })
     else:
         for d in load_stations():
@@ -268,6 +279,7 @@ if st.session_state.quiz == "master":
             table.append({
                 "駅名": d["name"], "都道府県": d["pref"], "住所": d["address"],
                 "運営": d["companies"], "路線": d["lines"],
+                "Trivia": get_trivia("station", d["name"], d["pref"]),
             })
 
     st.caption(f"{len(table)} 件")
