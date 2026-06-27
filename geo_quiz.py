@@ -72,6 +72,22 @@ def load_stations():
         return list(csv.DictReader(f))
 
 
+@st.cache_data
+def load_trivia():
+    import os
+    triv = {}
+    if not os.path.exists("trivia.csv"):
+        return triv
+    with open("trivia.csv", "r", encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            triv[(r["type"], r["key"], r["pref"])] = r["trivia"]
+    return triv
+
+
+def get_trivia(typ, key, pref):
+    return load_trivia().get((typ, key, pref), "")
+
+
 # ===== 同名（簡単すぎ）判定 =====
 def _pref_core(pref):
     for suf in ("都", "道", "府", "県"):
@@ -114,7 +130,7 @@ def make_city_questions(mode):
         questions.append({
             "prompt": q["city"], "yomi": q["yomi"], "correct": q["pref"],
             "choices": _build_choices(q["pref"], city_to_prefs[q["city"]]),
-            "detail": "",
+            "detail": "", "trivia": get_trivia("city", q["city"], q["pref"]),
         })
     return questions
 
@@ -130,6 +146,7 @@ def make_areacode_questions():
         questions.append({
             "prompt": q["code"], "yomi": "", "correct": q["pref"],
             "choices": _build_choices(q["pref"], exclude), "detail": detail,
+            "trivia": get_trivia("areacode", q["code"], q["pref"]),
         })
     return questions
 
@@ -151,6 +168,7 @@ def make_station_questions():
         questions.append({
             "prompt": q["name"], "yomi": "", "correct": q["pref"],
             "choices": _build_choices(q["pref"], exclude), "detail": detail,
+            "trivia": get_trivia("station", q["name"], q["pref"]),
         })
     return questions
 
@@ -239,10 +257,9 @@ if st.session_state.quiz == "master":
         for d in load_areacodes():
             if not (_pref_ok(d["pref"]) and _kw_ok(d["code"], d["cities"], d["pref"], d["other_cities"])):
                 continue
-            other = d["other_prefs"].replace("|", "・")
             table.append({
                 "市外局番": d["code"], "都道府県": d["pref"], "主な対象地域": d["cities"],
-                "他県でも使用": other,
+                "他県でも使用": d["other_cities"],
             })
     else:
         for d in load_stations():
@@ -334,7 +351,8 @@ if current < TOTAL_QUESTIONS:
             if cols[i % 2].button(choice, key=f"q{current}_c{i}", use_container_width=True):
                 st.session_state.answers.append({
                     "prompt": q["prompt"], "yomi": q["yomi"], "correct": q["correct"],
-                    "selected": choice, "is_correct": (choice == q["correct"]), "detail": q["detail"],
+                    "selected": choice, "is_correct": (choice == q["correct"]),
+                    "detail": q["detail"], "trivia": q.get("trivia", ""),
                 })
                 st.rerun()
     else:
@@ -346,6 +364,9 @@ if current < TOTAL_QUESTIONS:
             st.error(f"❌ 不正解…　あなたの回答: {ans['selected']} ／ 正解は {ans['correct']} です。")
         if ans["detail"]:
             st.info(ans["detail"])
+        if ans.get("trivia"):
+            st.markdown(f"**Trivia**\n\n{ans['trivia']}")
+            st.caption("By Claude Opus 4.8")
 
         if st.button("次の問題へ ▶", type="primary"):
             st.session_state.current += 1
