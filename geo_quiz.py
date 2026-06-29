@@ -1,6 +1,7 @@
 import streamlit as st
 import csv
 import random
+import requests
 from collections import defaultdict
 
 # ===== ページ設定 =====
@@ -47,6 +48,9 @@ ICON_MARKUP = {
     "master": ("<path d='M9 2a1 1 0 0 0-1 1H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5"
                "a2 2 0 0 0-2-2h-2a1 1 0 0 0-1-1H9zm0 2h6v2H9V4zM7 10h10v2H7v-2zm0 4h10v2H7v-2z"
                "m0 4h7v2H7v-2z'/>"),
+    # 吹き出し（開発者への要望）
+    "feedback": ("<path d='M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4"
+                 "a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 5v2h10V8H7zm0 4v2h7v-2H7z'/>"),
 }
 
 
@@ -108,6 +112,106 @@ def load_trivia():
 
 def get_trivia(typ, key, pref):
     return load_trivia().get((typ, key, pref), "")
+
+
+# ===== 投稿機能（Supabase REST 連携）=====
+def _sb():
+    try:
+        return st.secrets["SUPABASE_URL"].rstrip("/"), st.secrets["SUPABASE_KEY"]
+    except Exception:
+        return None, None
+
+
+def sb_enabled():
+    u, k = _sb()
+    return bool(u and k)
+
+
+def _sb_headers(extra=None):
+    _, k = _sb()
+    h = {"apikey": k, "Authorization": f"Bearer {k}"}
+    if extra:
+        h.update(extra)
+    return h
+
+
+def sb_select(table, query=""):
+    u, k = _sb()
+    if not u:
+        return []
+    try:
+        r = requests.get(f"{u}/rest/v1/{table}?{query}", headers=_sb_headers(), timeout=10)
+        return r.json() if r.ok else []
+    except Exception:
+        return []
+
+
+def sb_insert(table, row):
+    u, k = _sb()
+    if not u:
+        return False
+    try:
+        r = requests.post(f"{u}/rest/v1/{table}",
+                          headers=_sb_headers({"Content-Type": "application/json",
+                                               "Prefer": "return=minimal"}),
+                          json=row, timeout=10)
+        return r.ok
+    except Exception:
+        return False
+
+
+def sb_delete(table, row_id):
+    u, k = _sb()
+    if not u:
+        return False
+    try:
+        r = requests.delete(f"{u}/rest/v1/{table}?id=eq.{row_id}",
+                            headers=_sb_headers({"Prefer": "return=minimal"}), timeout=10)
+        return r.ok
+    except Exception:
+        return False
+
+
+def admin_pw():
+    try:
+        return st.secrets.get("ADMIN_PASSCODE", "")
+    except Exception:
+        return ""
+
+
+# 簡易モデレーション
+NG_WORDS = ["http://", "https://", "www.", "ｈｔｔｐ"]  # スパムURL等。必要に応じて追記。
+
+
+def moderate(text, maxlen):
+    t = (text or "").strip()
+    if not t:
+        return None, "内容が空です。"
+    if len(t) > maxlen:
+        return None, f"{maxlen}文字以内で入力してください。"
+    low = t.lower()
+    for w in NG_WORDS:
+        if w and w in low:
+            return None, "リンクや不適切な内容は投稿できません。"
+    return t, ""
+
+
+def clean_author(name):
+    return ((name or "").strip() or "名無し")[:20]
+
+
+@st.cache_data(ttl=20)
+def load_user_trivia():
+    rows = sb_select("trivia_posts", "select=type,key,pref,trivia,author&order=id.asc")
+    d = {}
+    for r in rows:
+        d.setdefault((r.get("type"), r.get("key"), r.get("pref")), []).append(
+            (r.get("trivia", ""), r.get("author") or "名無し"))
+    return d
+
+
+def get_user_trivia(typ, key, pref):
+    return load_user_trivia().get((typ, key, pref), [])
 
 
 # ===== 同名（簡単すぎ）判定 =====
@@ -258,6 +362,13 @@ if st.session_state.quiz is None:
     if st.button("マスタを閲覧する", use_container_width=True, key="open_master"):
         st.session_state.quiz = "master"
         st.rerun()
+
+    st.write("")
+    st.markdown(f'<h3>{quiz_icon("feedback", 24)}開発者への要望</h3>', unsafe_allow_html=True)
+    st.caption("アプリへの要望・感想を投稿できます（だれでも閲覧できます）。")
+    if st.button("要望を見る・投稿する", use_container_width=True, key="open_feedback"):
+        st.session_state.quiz = "feedback"
+        st.rerun()
     st.stop()
 
 # ===== マスタ閲覧 =====
@@ -315,6 +426,96 @@ if st.session_state.quiz == "master":
         unsafe_allow_html=True,
     )
     st.dataframe(table, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.markdown("#### このマスタにTriviaを投稿する")
+    if not sb_enabled():
+        st.info("投稿機能は現在準備中です（データベース未接続）。")
+    else:
+        with st.form("post_trivia", clear_on_submit=True):
+            tlabel = st.selectbox("種別", ["市区町村", "駅", "市外局番"])
+            tpref = st.selectbox("都道府県", ALL_PREFS)
+            ttarget = st.text_input("対象（マスタ一覧の表記どおり。例: 横浜市 ／ 渋谷 ／ 045）")
+            tbody = st.text_area("Trivia本文（120文字以内）", max_chars=120)
+            tauthor = st.text_input("投稿者名（20文字以内・任意）", max_chars=20)
+            submitted = st.form_submit_button("投稿する", type="primary")
+        if submitted:
+            itype = {"市区町村": "city", "駅": "station", "市外局番": "areacode"}[tlabel]
+            target = ttarget.strip()
+            body, err = moderate(tbody, 120)
+            resolved = None
+            if itype == "city":
+                if any(d["city"] == target and d["pref"] == tpref for d in load_cities()):
+                    resolved = (target, tpref)
+            elif itype == "station":
+                if any(d["name"] == target and d["pref"] == tpref for d in load_stations()):
+                    resolved = (target, tpref)
+            else:
+                for d in load_areacodes():
+                    if d["code"] == target:
+                        resolved = (target, d["pref"])
+                        break
+            if err:
+                st.error(err)
+            elif not resolved:
+                st.error("対象が見つかりません。一覧の表記どおりに入力してください"
+                         "（市区町村は『○○市』、駅は駅名のみ、市外局番は数字）。")
+            else:
+                ok = sb_insert("trivia_posts", {
+                    "type": itype, "key": resolved[0], "pref": resolved[1],
+                    "trivia": body, "author": clean_author(tauthor)})
+                if ok:
+                    load_user_trivia.clear()
+                    st.success("投稿しました。該当クイズの正解画面に表示されます。")
+                else:
+                    st.error("投稿に失敗しました。時間をおいて再度お試しください。")
+    st.stop()
+
+# ===== 開発者への要望（掲示板）=====
+if st.session_state.quiz == "feedback":
+    st.markdown(f'<h3>{quiz_icon("feedback", 24)}開発者への要望</h3>', unsafe_allow_html=True)
+    if st.button("← ホームに戻る"):
+        go_home()
+        st.rerun()
+    st.caption("アプリへの要望・感想を投稿できます。だれでも閲覧できます。")
+
+    if not sb_enabled():
+        st.info("投稿機能は現在準備中です（データベース未接続）。")
+        st.stop()
+
+    with st.form("post_fb", clear_on_submit=True):
+        fbody = st.text_area("要望・感想（300文字以内）", max_chars=300)
+        fauthor = st.text_input("投稿者名（20文字以内・任意）", max_chars=20)
+        fsub = st.form_submit_button("投稿する", type="primary")
+    if fsub:
+        body, err = moderate(fbody, 300)
+        if err:
+            st.error(err)
+        elif sb_insert("feedback_posts", {"body": body, "author": clean_author(fauthor)}):
+            st.success("投稿しました。")
+        else:
+            st.error("投稿に失敗しました。時間をおいて再度お試しください。")
+
+    st.divider()
+    posts = sb_select("feedback_posts", "select=id,body,author&order=id.desc")
+    st.caption(f"{len(posts)} 件の投稿")
+
+    is_admin = False
+    with st.expander("管理者用"):
+        pw = st.text_input("管理パスコード", type="password")
+        if pw and admin_pw() and pw == admin_pw():
+            is_admin = True
+            st.success("管理者モード：各投稿に削除ボタンが表示されます。")
+        elif pw:
+            st.error("パスコードが違います。")
+
+    for p in posts:
+        with st.container(border=True):
+            st.markdown(p.get("body", ""))
+            st.caption(f"By {p.get('author') or '名無し'}")
+            if is_admin and st.button("削除", key=f"del_fb_{p['id']}"):
+                if sb_delete("feedback_posts", p["id"]):
+                    st.rerun()
     st.stop()
 
 # ===== 選択中クイズ =====
@@ -406,6 +607,9 @@ if current < TOTAL_QUESTIONS:
         if ans.get("trivia"):
             st.markdown(f"**Trivia**\n\n{ans['trivia']}")
             st.caption("By Claude Opus 4.8")
+        for _body, _author in get_user_trivia(st.session_state.quiz, ans["prompt"], ans["correct"]):
+            st.markdown(f"**Trivia**\n\n{_body}")
+            st.caption(f"By {_author}")
 
         if st.button("次の問題へ ▶", type="primary"):
             st.session_state.current += 1
