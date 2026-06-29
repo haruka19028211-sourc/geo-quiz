@@ -6,39 +6,67 @@ from collections import defaultdict
 # ===== ページ設定 =====
 st.set_page_config(page_title="Geo Quiz: Japan", page_icon="📍")
 
-# 位置ピン（モノクロSVGアイコン）
-PIN_ICON = (
-    '<svg width="{size}" height="{size}" viewBox="0 0 24 24" '
-    'fill="currentColor" style="vertical-align:-0.12em;margin-right:.2em;">'
-    '<path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z'
-    'm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>'
+# ドット絵風フォント（タイトル・見出し用）
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+    .stApp, .stApp * { font-family:'Noto Sans JP', sans-serif; }
+    .pix-en { font-family:'Press Start 2P', monospace !important; font-size:1.4rem; line-height:1.6; }
+    .pixicon { shape-rendering:crispEdges; vertical-align:-0.2em; margin-right:.32em; }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-
-def pin(size):
-    return PIN_ICON.format(size=size)
-
-
-# モノトーンのクイズ別アイコン
-ICON_PATHS = {
-    "city": "M3 21V8l6-3v3l6-3v4h6v12h-7v-4h-2v4H3zm2-2h3v-2H5v2zm0-4h3v-2H5v2z"
-            "m0-4h3V9H5v2zm5 0h3V7h-3v2zm0 4h3v-2h-3v2zm6 4h3v-2h-3v2zm0-4h3v-2h-3v2z",
-    "areacode": "M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24 "
-                "11.4 11.4 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4"
-                "a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.24 "
-                "1.02l-2.21 2.2z",
-    "station": "M5 15V7c0-2.5 2.5-3 7-3s7 .5 7 3v8c0 1.4-1.1 2.5-2.5 2.5l1.5 1.5v.5H6v-.5"
-               "l1.5-1.5C6.1 17.5 5 16.4 5 15zm2.5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"
-               "M11 11V7H7v4h4zm2 0h4V7h-4v4zm3.5 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
-    "master": "M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
-              "m2 4v2h10V7H7zm0 4v2h10v-2H7zm0 4v2h7v-2H7z",
+# 位置ピン（モノクロSVGアイコン）
+# ドット絵風アイコン（16x16グリッドの矩形で構成。白い部分は窓などの抜き）
+PIXEL_ICONS = {
+    # 位置ピン
+    "pin": ("<rect x='6' y='2' width='4' height='1'/><rect x='5' y='3' width='6' height='1'/>"
+            "<rect x='5' y='4' width='2' height='1'/><rect x='9' y='4' width='2' height='1'/>"
+            "<rect x='5' y='5' width='2' height='1'/><rect x='9' y='5' width='2' height='1'/>"
+            "<rect x='5' y='6' width='6' height='1'/><rect x='6' y='7' width='4' height='1'/>"
+            "<rect x='7' y='8' width='2' height='2'/>"),
+    # ビル街（市区町村）
+    "city": ("<rect x='2' y='6' width='4' height='8'/><rect x='7' y='3' width='4' height='11'/>"
+             "<rect x='12' y='9' width='3' height='5'/>"
+             "<rect x='3' y='8' width='2' height='1' fill='#fff'/>"
+             "<rect x='3' y='11' width='2' height='1' fill='#fff'/>"
+             "<rect x='8' y='5' width='2' height='1' fill='#fff'/>"
+             "<rect x='8' y='8' width='2' height='1' fill='#fff'/>"
+             "<rect x='8' y='11' width='2' height='1' fill='#fff'/>"),
+    # 電車（駅名）
+    "station": ("<rect x='3' y='3' width='10' height='9'/>"
+                "<rect x='4' y='4' width='3' height='3' fill='#fff'/>"
+                "<rect x='9' y='4' width='3' height='3' fill='#fff'/>"
+                "<rect x='7' y='9' width='2' height='2' fill='#fff'/>"
+                "<rect x='4' y='12' width='2' height='2'/><rect x='10' y='12' width='2' height='2'/>"),
+    # 黒電話（市外局番）: 受話器＋本体＋丸ダイヤル
+    "areacode": ("<rect x='3' y='1' width='10' height='1'/>"
+                 "<rect x='2' y='2' width='2' height='2'/><rect x='12' y='2' width='2' height='2'/>"
+                 "<rect x='4' y='4' width='8' height='8'/><rect x='3' y='10' width='10' height='3'/>"
+                 "<rect x='6' y='6' width='4' height='4' fill='#fff'/>"
+                 "<rect x='7' y='7' width='2' height='2'/>"),
+    # クリップボード（マスタ）
+    "master": ("<rect x='4' y='2' width='8' height='12'/><rect x='6' y='1' width='4' height='2'/>"
+               "<rect x='6' y='5' width='4' height='1' fill='#fff'/>"
+               "<rect x='6' y='8' width='4' height='1' fill='#fff'/>"
+               "<rect x='6' y='11' width='4' height='1' fill='#fff'/>"),
 }
 
 
+def _pixel_svg(key, size):
+    return (f"<svg class='pixicon' width='{size}' height='{size}' viewBox='0 0 16 16' "
+            f"fill='currentColor'>{PIXEL_ICONS[key]}</svg>")
+
+
+def pin(size):
+    return _pixel_svg("pin", size)
+
+
 def quiz_icon(key, size):
-    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="currentColor" '
-            f'style="vertical-align:-0.15em;margin-right:.28em;">'
-            f'<path d="{ICON_PATHS[key]}"/></svg>')
+    return _pixel_svg(key, size)
 
 
 TOTAL_QUESTIONS = 10
@@ -166,7 +194,7 @@ def make_station_questions():
             parts.append(f"路線： {q['lines']}")
         detail = "\n\n".join(parts)
         questions.append({
-            "prompt": q["name"], "yomi": "", "correct": q["pref"],
+            "prompt": q["name"], "yomi": q.get("yomi", ""), "correct": q["pref"],
             "choices": _build_choices(q["pref"], exclude), "detail": detail,
             "trivia": get_trivia("station", q["name"], q["pref"]),
         })
@@ -206,21 +234,23 @@ if st.query_params.get("home") is not None:
 # ===== ホーム =====
 st.markdown(
     f'<a href="?home=1" target="_self" style="text-decoration:none;color:inherit;">'
-    f'<h1>{pin(34)}Geo Quiz: Japan</h1></a>',
+    f'<h1 class="pix-en">{pin(28)}Geo Quiz: Japan</h1></a>',
     unsafe_allow_html=True,
 )
-st.caption("ジオゲッサー日本マップ練習アプリ")
+st.markdown('<p class="pix-jp" style="color:#808495;">ジオゲッサー日本マップ練習アプリ</p>',
+            unsafe_allow_html=True)
 
 if st.session_state.quiz is None:
     st.write("挑戦するクイズを選んでください。")
     items = [
         ("city", "市区町村 → どの都道府県かを4択で"),
-        ("areacode", "市外局番 → どの都道府県かを4択で"),
         ("station", "駅名 → どの都道府県かを4択で"),
+        ("areacode", "市外局番 → どの都道府県かを4択で"),
     ]
     for key, desc in items:
         q = QUIZZES[key]
-        st.markdown(f"<h3>{quiz_icon(key, 26)}{q['title']}</h3>", unsafe_allow_html=True)
+        st.markdown(f'<h3 class="pix-jp">{quiz_icon(key, 24)}{q["title"]}</h3>',
+                    unsafe_allow_html=True)
         st.caption(desc)
         if st.button(f"{q['title']}で遊ぶ", type="primary", use_container_width=True, key=f"start_{key}"):
             st.session_state.quiz = key
@@ -228,7 +258,8 @@ if st.session_state.quiz is None:
         st.write("")
 
     st.divider()
-    st.markdown(f"<h3>{quiz_icon('master', 26)}マスタ閲覧</h3>", unsafe_allow_html=True)
+    st.markdown(f'<h3 class="pix-jp">{quiz_icon("master", 24)}マスタ閲覧</h3>',
+                unsafe_allow_html=True)
     st.caption("取り込んでいるデータ（市区町村・市外局番・駅）の一覧を確認できます。")
     if st.button("マスタを閲覧する", use_container_width=True, key="open_master"):
         st.session_state.quiz = "master"
@@ -237,7 +268,8 @@ if st.session_state.quiz is None:
 
 # ===== マスタ閲覧 =====
 if st.session_state.quiz == "master":
-    st.markdown(f"<h3>{quiz_icon('master', 26)}マスタ閲覧</h3>", unsafe_allow_html=True)
+    st.markdown(f'<h3 class="pix-jp">{quiz_icon("master", 24)}マスタ閲覧</h3>',
+                unsafe_allow_html=True)
     if st.button("← ホームに戻る"):
         go_home()
         st.rerun()
@@ -274,11 +306,11 @@ if st.session_state.quiz == "master":
             })
     else:
         for d in load_stations():
-            if not (_pref_ok(d["pref"]) and _kw_ok(d["name"], d["address"], d["pref"], d["lines"], d["companies"])):
+            if not (_pref_ok(d["pref"]) and _kw_ok(d["name"], d.get("yomi", ""), d["address"], d["pref"], d["lines"], d["companies"])):
                 continue
             table.append({
-                "駅名": d["name"], "都道府県": d["pref"], "住所": d["address"],
-                "運営": d["companies"], "路線": d["lines"],
+                "駅名": d["name"], "読み": d.get("yomi", ""), "都道府県": d["pref"],
+                "住所": d["address"], "運営": d["companies"], "路線": d["lines"],
                 "Trivia": get_trivia("station", d["name"], d["pref"]),
             })
 
@@ -298,7 +330,8 @@ QZ = QUIZZES[st.session_state.quiz]
 IS_CITY = st.session_state.quiz == "city"
 IS_AREACODE = st.session_state.quiz == "areacode"
 
-st.markdown(f"<h3>{quiz_icon(st.session_state.quiz, 26)}{QZ['title']}</h3>", unsafe_allow_html=True)
+st.markdown(f'<h3 class="pix-jp">{quiz_icon(st.session_state.quiz, 24)}{QZ["title"]}</h3>',
+            unsafe_allow_html=True)
 st.write(QZ["lead"])
 if st.button("← ホームに戻る"):
     go_home()
@@ -352,7 +385,7 @@ if current < TOTAL_QUESTIONS:
         st.markdown(f'<h1 style="letter-spacing:.1em;">{pin(34)}{q["prompt"]}</h1>', unsafe_allow_html=True)
     else:
         if q.get("yomi"):
-            body = f'<ruby>{q["prompt"]}<rt>{q["yomi"]}</rt></ruby>'
+            body = f'<ruby>{q["prompt"]}<rt>{q["yomi"]}</rt></ruby>{QZ["unit"]}'
         else:
             body = q["prompt"] + QZ["unit"]
         st.markdown(f'<h2>{pin(30)}{body}</h2>', unsafe_allow_html=True)
