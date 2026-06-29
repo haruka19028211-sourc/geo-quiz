@@ -10,9 +10,11 @@ st.set_page_config(page_title="Geo Quiz: Japan", page_icon="📍")
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;500;700&display=swap');
-    .stApp, .stApp * { font-family:'Noto Sans JP', sans-serif; }
-    .pix-en { font-family:'Press Start 2P', monospace !important; font-size:1.4rem; line-height:1.6; }
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+    html, body, .stApp, .stApp * { font-family:'Noto Sans JP', sans-serif; }
+    h1.pix-en, .pix-en, .pix-en * { font-family:'Press Start 2P', monospace !important;
+        font-size:1.3rem !important; line-height:1.7 !important; }
     .pixicon { shape-rendering:crispEdges; vertical-align:-0.2em; margin-right:.32em; }
     </style>
     """,
@@ -234,7 +236,8 @@ if st.query_params.get("home") is not None:
 # ===== ホーム =====
 st.markdown(
     f'<a href="?home=1" target="_self" style="text-decoration:none;color:inherit;">'
-    f'<h1 class="pix-en">{pin(28)}Geo Quiz: Japan</h1></a>',
+    f'<h1 class="pix-en" style="font-family:\'Press Start 2P\',monospace !important;'
+    f'font-size:1.3rem;line-height:1.7;">{pin(28)}Geo Quiz: Japan</h1></a>',
     unsafe_allow_html=True,
 )
 st.markdown('<p class="pix-jp" style="color:#808495;">ジオゲッサー日本マップ練習アプリ</p>',
