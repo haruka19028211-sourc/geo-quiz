@@ -51,6 +51,9 @@ ICON_MARKUP = {
     # 吹き出し（開発者への要望）
     "feedback": ("<path d='M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4"
                  "a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 5v2h10V8H7zm0 4v2h7v-2H7z'/>"),
+    # 鉛筆（Trivia投稿）
+    "post": ("<path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04"
+             "a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/>"),
 }
 
 
@@ -214,6 +217,54 @@ def get_user_trivia(typ, key, pref):
     return load_user_trivia().get((typ, key, pref), [])
 
 
+def render_trivia_form():
+    """Trivia投稿フォーム（投稿者名は必須）"""
+    if not sb_enabled():
+        st.info("投稿機能は現在準備中です（データベース未接続）。")
+        return
+    with st.form("post_trivia", clear_on_submit=True):
+        tlabel = st.selectbox("種別", ["市区町村", "駅", "市外局番"])
+        tpref = st.selectbox("都道府県", ALL_PREFS)
+        ttarget = st.text_input("対象（一覧の表記どおり。例: 横浜市 ／ 渋谷 ／ 045）")
+        tbody = st.text_area("Trivia本文（120文字以内）", max_chars=120)
+        tauthor = st.text_input("投稿者名（必須・20文字以内）", max_chars=20)
+        submitted = st.form_submit_button("投稿する", type="primary")
+    if not submitted:
+        return
+    itype = {"市区町村": "city", "駅": "station", "市外局番": "areacode"}[tlabel]
+    target = ttarget.strip()
+    author = (tauthor or "").strip()
+    body, err = moderate(tbody, 120)
+    resolved = None
+    if itype == "city":
+        if any(d["city"] == target and d["pref"] == tpref for d in load_cities()):
+            resolved = (target, tpref)
+    elif itype == "station":
+        if any(d["name"] == target and d["pref"] == tpref for d in load_stations()):
+            resolved = (target, tpref)
+    else:
+        for d in load_areacodes():
+            if d["code"] == target:
+                resolved = (target, d["pref"])
+                break
+    if not author:
+        st.error("投稿者名を入力してください（必須）。")
+    elif err:
+        st.error(err)
+    elif not resolved:
+        st.error("対象が見つかりません。一覧の表記どおりに入力してください"
+                 "（市区町村は『○○市』、駅は駅名のみ、市外局番は数字）。")
+    else:
+        ok = sb_insert("trivia_posts", {
+            "type": itype, "key": resolved[0], "pref": resolved[1],
+            "trivia": body, "author": author[:20]})
+        if ok:
+            load_user_trivia.clear()
+            st.success("投稿しました。該当クイズの正解画面に表示されます。")
+        else:
+            st.error("投稿に失敗しました。時間をおいて再度お試しください。")
+
+
 # ===== 同名（簡単すぎ）判定 =====
 def _pref_core(pref):
     for suf in ("都", "道", "府", "県"):
@@ -364,6 +415,13 @@ if st.session_state.quiz is None:
         st.rerun()
 
     st.write("")
+    st.markdown(f'<h3>{quiz_icon("post", 24)}Triviaを投稿</h3>', unsafe_allow_html=True)
+    st.caption("市区町村・駅・市外局番の豆知識を投稿できます（正解画面に表示されます）。")
+    if st.button("Triviaを投稿する", use_container_width=True, key="open_post_trivia"):
+        st.session_state.quiz = "post_trivia"
+        st.rerun()
+
+    st.write("")
     st.markdown(f'<h3>{quiz_icon("feedback", 24)}開発者への要望</h3>', unsafe_allow_html=True)
     st.caption("アプリへの要望・感想を投稿できます（だれでも閲覧できます）。")
     if st.button("要望を見る・投稿する", use_container_width=True, key="open_feedback"):
@@ -426,49 +484,16 @@ if st.session_state.quiz == "master":
         unsafe_allow_html=True,
     )
     st.dataframe(table, use_container_width=True, hide_index=True)
+    st.stop()
 
-    st.divider()
-    st.markdown("#### このマスタにTriviaを投稿する")
-    if not sb_enabled():
-        st.info("投稿機能は現在準備中です（データベース未接続）。")
-    else:
-        with st.form("post_trivia", clear_on_submit=True):
-            tlabel = st.selectbox("種別", ["市区町村", "駅", "市外局番"])
-            tpref = st.selectbox("都道府県", ALL_PREFS)
-            ttarget = st.text_input("対象（マスタ一覧の表記どおり。例: 横浜市 ／ 渋谷 ／ 045）")
-            tbody = st.text_area("Trivia本文（120文字以内）", max_chars=120)
-            tauthor = st.text_input("投稿者名（20文字以内・任意）", max_chars=20)
-            submitted = st.form_submit_button("投稿する", type="primary")
-        if submitted:
-            itype = {"市区町村": "city", "駅": "station", "市外局番": "areacode"}[tlabel]
-            target = ttarget.strip()
-            body, err = moderate(tbody, 120)
-            resolved = None
-            if itype == "city":
-                if any(d["city"] == target and d["pref"] == tpref for d in load_cities()):
-                    resolved = (target, tpref)
-            elif itype == "station":
-                if any(d["name"] == target and d["pref"] == tpref for d in load_stations()):
-                    resolved = (target, tpref)
-            else:
-                for d in load_areacodes():
-                    if d["code"] == target:
-                        resolved = (target, d["pref"])
-                        break
-            if err:
-                st.error(err)
-            elif not resolved:
-                st.error("対象が見つかりません。一覧の表記どおりに入力してください"
-                         "（市区町村は『○○市』、駅は駅名のみ、市外局番は数字）。")
-            else:
-                ok = sb_insert("trivia_posts", {
-                    "type": itype, "key": resolved[0], "pref": resolved[1],
-                    "trivia": body, "author": clean_author(tauthor)})
-                if ok:
-                    load_user_trivia.clear()
-                    st.success("投稿しました。該当クイズの正解画面に表示されます。")
-                else:
-                    st.error("投稿に失敗しました。時間をおいて再度お試しください。")
+# ===== Trivia投稿（専用ページ）=====
+if st.session_state.quiz == "post_trivia":
+    st.markdown(f'<h3>{quiz_icon("post", 24)}Triviaを投稿</h3>', unsafe_allow_html=True)
+    if st.button("← ホームに戻る"):
+        go_home()
+        st.rerun()
+    st.caption("投稿したTriviaは、その項目の正解画面に「本文 By 投稿者名」で表示されます。")
+    render_trivia_form()
     st.stop()
 
 # ===== 開発者への要望（掲示板）=====
@@ -485,13 +510,16 @@ if st.session_state.quiz == "feedback":
 
     with st.form("post_fb", clear_on_submit=True):
         fbody = st.text_area("要望・感想（300文字以内）", max_chars=300)
-        fauthor = st.text_input("投稿者名（20文字以内・任意）", max_chars=20)
+        fauthor = st.text_input("投稿者名（必須・20文字以内）", max_chars=20)
         fsub = st.form_submit_button("投稿する", type="primary")
     if fsub:
         body, err = moderate(fbody, 300)
-        if err:
+        author = (fauthor or "").strip()
+        if not author:
+            st.error("投稿者名を入力してください（必須）。")
+        elif err:
             st.error(err)
-        elif sb_insert("feedback_posts", {"body": body, "author": clean_author(fauthor)}):
+        elif sb_insert("feedback_posts", {"body": body, "author": author[:20]}):
             st.success("投稿しました。")
         else:
             st.error("投稿に失敗しました。時間をおいて再度お試しください。")
