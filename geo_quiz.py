@@ -217,6 +217,17 @@ def get_user_trivia(typ, key, pref):
     return load_user_trivia().get((typ, key, pref), [])
 
 
+def trivia_cell(typ, key, pref):
+    """マスタ一覧用：組み込みTrivia＋ユーザー投稿Triviaをまとめた文字列"""
+    parts = []
+    b = get_trivia(typ, key, pref)
+    if b:
+        parts.append(f"{b}（By Claude Opus 4.8）")
+    for body, author in get_user_trivia(typ, key, pref):
+        parts.append(f"{body}（By {author}）")
+    return " ／ ".join(parts)
+
+
 def render_trivia_form():
     """Trivia投稿フォーム（投稿者名は必須）"""
     if not sb_enabled():
@@ -456,7 +467,7 @@ if st.session_state.quiz == "master":
                 continue
             table.append({
                 "都道府県": d["pref"], "市区町村": d["city"], "読み": d["yomi"],
-                "Trivia": get_trivia("city", d["city"], d["pref"]),
+                "Trivia": trivia_cell("city", d["city"], d["pref"]),
             })
     elif target == "市外局番":
         for d in load_areacodes():
@@ -465,7 +476,7 @@ if st.session_state.quiz == "master":
             table.append({
                 "市外局番": d["code"], "都道府県": d["pref"], "主な対象地域": d["cities"],
                 "他県でも使用": d["other_cities"],
-                "Trivia": get_trivia("areacode", d["code"], d["pref"]),
+                "Trivia": trivia_cell("areacode", d["code"], d["pref"]),
             })
     else:
         for d in load_stations():
@@ -474,16 +485,22 @@ if st.session_state.quiz == "master":
             table.append({
                 "駅名": d["name"], "読み": d.get("yomi", ""), "都道府県": d["pref"],
                 "住所": d["address"], "運営": d["companies"], "路線": d["lines"],
-                "Trivia": get_trivia("station", d["name"], d["pref"]),
+                "Trivia": trivia_cell("station", d["name"], d["pref"]),
             })
 
     st.caption(f"{len(table)} 件")
-    # 表のツールバー（CSVダウンロード等）を非表示
+    # マスタ画面は横長に＋ツールバー（CSVダウンロード等）を非表示
     st.markdown(
-        '<style>[data-testid="stElementToolbar"]{display:none !important;}</style>',
+        "<style>"
+        ".block-container,[data-testid='stMainBlockContainer']{max-width:1200px !important;}"
+        "[data-testid='stElementToolbar']{display:none !important;}"
+        "</style>",
         unsafe_allow_html=True,
     )
-    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.dataframe(
+        table, use_container_width=True, hide_index=True, height=560,
+        column_config={"Trivia": st.column_config.TextColumn("Trivia", width="large")},
+    )
     st.stop()
 
 # ===== Trivia投稿（専用ページ）=====
