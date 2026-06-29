@@ -10,65 +10,57 @@ st.set_page_config(page_title="Geo Quiz: Japan", page_icon="📍")
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
     html, body, .stApp, .stApp * { font-family:'Noto Sans JP', sans-serif; }
-    h1.pix-en, .pix-en, .pix-en * { font-family:'Press Start 2P', monospace !important;
-        font-size:1.3rem !important; line-height:1.7 !important; }
-    .pixicon { shape-rendering:crispEdges; vertical-align:-0.2em; margin-right:.32em; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # 位置ピン（モノクロSVGアイコン）
-# ドット絵風アイコン（16x16グリッドの矩形で構成。白い部分は窓などの抜き）
-PIXEL_ICONS = {
-    # 位置ピン
-    "pin": ("<rect x='6' y='2' width='4' height='1'/><rect x='5' y='3' width='6' height='1'/>"
-            "<rect x='5' y='4' width='2' height='1'/><rect x='9' y='4' width='2' height='1'/>"
-            "<rect x='5' y='5' width='2' height='1'/><rect x='9' y='5' width='2' height='1'/>"
-            "<rect x='5' y='6' width='6' height='1'/><rect x='6' y='7' width='4' height='1'/>"
-            "<rect x='7' y='8' width='2' height='2'/>"),
-    # ビル街（市区町村）
-    "city": ("<rect x='2' y='6' width='4' height='8'/><rect x='7' y='3' width='4' height='11'/>"
-             "<rect x='12' y='9' width='3' height='5'/>"
-             "<rect x='3' y='8' width='2' height='1' fill='#fff'/>"
-             "<rect x='3' y='11' width='2' height='1' fill='#fff'/>"
-             "<rect x='8' y='5' width='2' height='1' fill='#fff'/>"
-             "<rect x='8' y='8' width='2' height='1' fill='#fff'/>"
-             "<rect x='8' y='11' width='2' height='1' fill='#fff'/>"),
+# モノクロアイコン（24x24, currentColorで塗り。白い部分は窓などの抜き）
+ICON_MARKUP = {
+    # 位置ピン（タイトル左）
+    "pin": ("<path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+            "m0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z'/>"),
+    # ビル（市区町村）
+    "city": ("<path d='M4 21V4h10v17H4z'/><path d='M14 9h6v12h-6z'/>"
+             "<rect x='6' y='6' width='2' height='2' fill='#fff'/>"
+             "<rect x='10' y='6' width='2' height='2' fill='#fff'/>"
+             "<rect x='6' y='10' width='2' height='2' fill='#fff'/>"
+             "<rect x='10' y='10' width='2' height='2' fill='#fff'/>"
+             "<rect x='6' y='14' width='2' height='2' fill='#fff'/>"
+             "<rect x='10' y='14' width='2' height='2' fill='#fff'/>"
+             "<rect x='16' y='12' width='2' height='2' fill='#fff'/>"
+             "<rect x='16' y='16' width='2' height='2' fill='#fff'/>"),
     # 電車（駅名）
-    "station": ("<rect x='3' y='3' width='10' height='9'/>"
-                "<rect x='4' y='4' width='3' height='3' fill='#fff'/>"
-                "<rect x='9' y='4' width='3' height='3' fill='#fff'/>"
-                "<rect x='7' y='9' width='2' height='2' fill='#fff'/>"
-                "<rect x='4' y='12' width='2' height='2'/><rect x='10' y='12' width='2' height='2'/>"),
-    # 黒電話（市外局番）: 受話器＋本体＋丸ダイヤル
-    "areacode": ("<rect x='3' y='1' width='10' height='1'/>"
-                 "<rect x='2' y='2' width='2' height='2'/><rect x='12' y='2' width='2' height='2'/>"
-                 "<rect x='4' y='4' width='8' height='8'/><rect x='3' y='10' width='10' height='3'/>"
-                 "<rect x='6' y='6' width='4' height='4' fill='#fff'/>"
-                 "<rect x='7' y='7' width='2' height='2'/>"),
+    "station": ("<path d='M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h12v-.5"
+                "L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5"
+                "S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zM11 10H6V6h5v4zm2 0V6h5v4h-5z"
+                "m3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z'/>"),
+    # 電話の受話器（市外局番）
+    "areacode": ("<path d='M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24"
+                 " 11.36 11.36 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4"
+                 "a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.24 1.02"
+                 "l-2.21 2.2z'/>"),
     # クリップボード（マスタ）
-    "master": ("<rect x='4' y='2' width='8' height='12'/><rect x='6' y='1' width='4' height='2'/>"
-               "<rect x='6' y='5' width='4' height='1' fill='#fff'/>"
-               "<rect x='6' y='8' width='4' height='1' fill='#fff'/>"
-               "<rect x='6' y='11' width='4' height='1' fill='#fff'/>"),
+    "master": ("<path d='M9 2a1 1 0 0 0-1 1H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5"
+               "a2 2 0 0 0-2-2h-2a1 1 0 0 0-1-1H9zm0 2h6v2H9V4zM7 10h10v2H7v-2zm0 4h10v2H7v-2z"
+               "m0 4h7v2H7v-2z'/>"),
 }
 
 
-def _pixel_svg(key, size):
-    return (f"<svg class='pixicon' width='{size}' height='{size}' viewBox='0 0 16 16' "
-            f"fill='currentColor'>{PIXEL_ICONS[key]}</svg>")
+def _svg(key, size):
+    return (f"<svg width='{size}' height='{size}' viewBox='0 0 24 24' fill='currentColor' "
+            f"style='vertical-align:-0.18em;margin-right:.3em;'>{ICON_MARKUP[key]}</svg>")
 
 
 def pin(size):
-    return _pixel_svg("pin", size)
+    return _svg("pin", size)
 
 
 def quiz_icon(key, size):
-    return _pixel_svg(key, size)
+    return _svg(key, size)
 
 
 TOTAL_QUESTIONS = 10
@@ -236,8 +228,7 @@ if st.query_params.get("home") is not None:
 # ===== ホーム =====
 st.markdown(
     f'<a href="?home=1" target="_self" style="text-decoration:none;color:inherit;">'
-    f'<h1 class="pix-en" style="font-family:\'Press Start 2P\',monospace !important;'
-    f'font-size:1.3rem;line-height:1.7;">{pin(28)}Geo Quiz: Japan</h1></a>',
+    f'<h1>{pin(30)}Geo Quiz: Japan</h1></a>',
     unsafe_allow_html=True,
 )
 st.markdown('<p class="pix-jp" style="color:#808495;">ジオゲッサー日本マップ練習アプリ</p>',
